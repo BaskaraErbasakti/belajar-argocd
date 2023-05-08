@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+spec:
+  generators:
+  - git:
+      repoURL: https://github.com/example/repo.git 
+      revision: HEAD 
+      directories:
+      - path: 'staging/*' # match any subfolder under staging 
+        cluster: staging         
+        url: https://1.2.3.4
+      - path: 'production/*' # match any subfolder under production 
+        cluster: production         
+        url: https://9.8.7.6
+  template:
+    metadata:
+      name: '{{cluster}}-{{path.basename}}'
+    spec:
+      project: default 
+      source:
+        repoURL: https://github.com/example/chart.git # use helm chart from this repo
+        chart: '{{path.basename}}' # use the subfolder name as the chart name
+        targetRevision: HEAD 
+      destination:
+        server: '{{url}}'
+        namespace: apps # use apps as the namespace for all applications
