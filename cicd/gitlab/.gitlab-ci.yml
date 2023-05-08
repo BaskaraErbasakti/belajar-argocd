@@ -1,0 +1,61 @@
+stages:
+  - deploy
+
+variables:
+  REPO_ARGOCD_URL: github.com/BaskaraErbasakti/belajar-argocd
+
+deploy:staging:
+  stage: deploy
+  image: alpine/git:v2.26.2
+  environment:
+    name: staging
+    url: https://argocd.example.com
+  # Define the before script to install yq from github repo using curl  
+  before_script:
+    - wget https://github.com/mikefarah/yq/releases/download/v4.13.5/yq_linux_amd64.tar.gz -O - | tar xz && mv yq_linux_amd64 /usr/bin/yq
+  script:
+    # Set up git config and credentials
+    - git config --global user.name "$GITLAB_USER"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    # Clone the argocd repo using token authentication
+    - git clone --depth 1 -b master https://$GIT_TOKEN@$REPO_ARGOCD_URL argocd-repo
+    # Change the values.yaml file to use the latest Docker image
+    - cd argocd-repo/staging/$CI_PROJECT_NAME
+    - yq eval '.image.tag = env(CI_COMMIT_SHORT_SHA)' -i values.yaml
+    # Change the chart.yaml file to use the latest appVersion
+    - yq eval '.appVersion = env(CI_COMMIT_SHORT_SHA)' -i Chart.yaml
+    # Push the changes to the argocd repo
+    - git add values.yaml chart.yaml
+    - git commit -m "Update $CI_PROJECT_NAME staging with tag $CI_COMMIT_SHORT_SHA"
+    - git push origin master
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: on_success
+
+deploy:production:
+  stage: deploy
+  image: alpine/git:v2.26.2
+  environment:
+    name: production
+    url: https://argocd.example.com
+  # Define the before script to install yq from github repo using curl  
+  before_script:
+    - wget https://github.com/mikefarah/yq/releases/download/v4.13.5/yq_linux_amd64.tar.gz -O - | tar xz && mv yq_linux_amd64 /usr/bin/yq
+  script:
+    # Set up git config and credentials
+    - git config --global user.name "$GITLAB_USER"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    # Clone the argocd repo using token authentication
+    - git clone --depth 1 -b master https://$GIT_TOKEN@$REPO_ARGOCD_URL argocd-repo
+    # Change the values.yaml file to use the latest Docker image
+    - cd argocd-repo/production/$CI_PROJECT_NAME
+    - yq eval '.image.tag = env(CI_COMMIT_TAG)' -i values.yaml
+    # Change the chart.yaml file to use the latest appVersion
+    - yq eval '.appVersion = env(CI_COMMIT_TAG)' -i Chart.yaml
+    # Push the changes to the argocd repo
+    - git add values.yaml chart.yaml
+    - git commit -m "Update $CI_PROJECT_NAME production with tag $CI_COMMIT_TAG"
+    - git push origin master
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v(\d+\.)?(\d+\.)?(\d+)$/'
+      when: on_success          
